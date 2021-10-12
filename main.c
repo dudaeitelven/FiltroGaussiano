@@ -14,7 +14,7 @@
 Para compilar:
 1 - Abrir o local do fonte
 2 - Digitar para compilar: gcc main.c -o main -lm
-3 - Digitar para rodar: ./main borboleta.bmp saida.bmp 4
+3 - Digitar para rodar: ./main borboleta.bmp saida.bmp 7 1
 */
 
 struct cabecalho {
@@ -47,7 +47,7 @@ typedef struct rgb RGB;
 int main(int argc, char **argv ){
 	char *entrada, *saida;
 	char ali, aux;
-	int np;
+	int mascara;
 	int iForImagem, jForImagem;
 	int range, meio;
 	int lacoJ, limiteJ;
@@ -59,20 +59,28 @@ int main(int argc, char **argv ){
 	int iPosLinhaAnt, jPosColunaAnt;
 	int iPosLinha, jPosColuna;
 	int iPosLinhaPrx, jPosColunaPrx;
+	int nthreads;
 
 	CABECALHO cabecalho;
 	RGB *imagemEntrada, *imagemSaida;
-	RGB *imagemX, *imagemY;
+	RGB *imagemX, *imagemY, *matrizGaussiano;
 	RGB *imagemCinza;
+	RGB *imagemGaussiano;
 	
-	if ( argc != 4){
-		printf("%s <img_entrada> <img_saida> <num_proc> \n", argv[0]);
+	if ( argc != 5){
+		printf("%s <img_entrada> <img_saida> <mascara> <threads>\n", argv[0]);
 		exit(0);
 	}
 
-	entrada = argv[1];
-	saida 	= argv[2];
-    np 		= atoi(argv[3]);
+	entrada 	= argv[1];
+	saida 		= argv[2];
+    mascara		= atoi(argv[3]);
+	nthreads	= atoi(argv[5]);
+	
+	if ((mascara != 3) && (mascara != 5) && (mascara != 7)){
+		printf("Erro, valor da mascara deve ser de 3,5,7\n");
+		exit(0);
+	}
 
 	FILE *fin = fopen(entrada, "rb");
 	if ( fin == NULL ){
@@ -92,10 +100,13 @@ int main(int argc, char **argv ){
 	//Alocar imagems
 	imagemEntrada   = (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
 	imagemCinza  	= (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
+	imagemGaussiano = (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
+	imagemSaida  	= (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
 	
-	//Alocar auxiliar filtros
+	//Alocar auxiliar
 	imagemX  		= (RGB *)malloc((3*3)*sizeof(RGB));
 	imagemY  		= (RGB *)malloc((3*3)*sizeof(RGB));
+	matrizGaussiano = (RGB *)malloc((mascara*mascara)*sizeof(RGB));
 
 	//MascaraX - Filtro Sobel
 	MascaraX[0] = -1; //P1
@@ -118,7 +129,109 @@ int main(int argc, char **argv ){
 	MascaraY[6] =  1; //P7
 	MascaraY[7] =  2; //P8
 	MascaraY[8] =  1; //P9
-	
+
+	//if (mascara == 3) {
+	// 	matrizGaussiano[0] = 1;
+	// 	matrizGaussiano[1] = 2;
+	// 	matrizGaussiano[2] = 1;
+
+	// 	matrizGaussiano[3] = 2;
+	// 	matrizGaussiano[4] = 4;
+	// 	matrizGaussiano[5] = 2;
+
+	// 	matrizGaussiano[6] = 1;
+	// 	matrizGaussiano[7] = 2;
+	// 	matrizGaussiano[8] = 1;
+	// //}
+	//else if (mascara == 5) {
+	// 	matrizGaussiano[0] = 1;
+	// 	matrizGaussiano[1] = 4;
+	// 	matrizGaussiano[2] = 7;
+	// 	matrizGaussiano[3] = 4;
+	// 	matrizGaussiano[4] = 1;
+
+	// 	matrizGaussiano[5] = 4;
+	// 	matrizGaussiano[6] = 16;
+	// 	matrizGaussiano[7] = 26;
+	// 	matrizGaussiano[8] = 16;
+	// 	matrizGaussiano[9] = 4;
+
+	// 	matrizGaussiano[10] = 7;
+	// 	matrizGaussiano[11] = 26;
+	// 	matrizGaussiano[12] = 41;
+	// 	matrizGaussiano[13] = 26;
+	// 	matrizGaussiano[14] = 7;
+
+	// 	matrizGaussiano[15] = 4;
+	// 	matrizGaussiano[16] = 16;
+	// 	matrizGaussiano[17] = 26;
+	// 	matrizGaussiano[18] = 16;
+	// 	matrizGaussiano[19] = 4;
+
+	// 	matrizGaussiano[20] = 1;
+	// 	matrizGaussiano[21] = 4;
+	// 	matrizGaussiano[22] = 7;
+	// 	matrizGaussiano[23] = 4;
+	// 	matrizGaussiano[24] = 1;
+	// }
+	// else {
+	// 	matrizGaussiano[0] = 0;
+	// 	matrizGaussiano[1] = 0;
+	// 	matrizGaussiano[2] = 1;
+	// 	matrizGaussiano[3] = 2;
+	// 	matrizGaussiano[4] = 1;
+	// 	matrizGaussiano[5] = 0;
+	// 	matrizGaussiano[6] = 0;
+
+	// 	matrizGaussiano[7]  =  0;
+	// 	matrizGaussiano[8]  =  3;
+	// 	matrizGaussiano[9]  = 13;
+	// 	matrizGaussiano[10] = 22;
+	// 	matrizGaussiano[11] = 13;
+	// 	matrizGaussiano[12] =  3;
+	// 	matrizGaussiano[13] =  0;
+
+	// 	matrizGaussiano[14] =  1;
+	// 	matrizGaussiano[15] = 13;
+	// 	matrizGaussiano[16] = 59;
+	// 	matrizGaussiano[17] = 97;
+	// 	matrizGaussiano[18] = 59;
+	// 	matrizGaussiano[19] = 13;
+	// 	matrizGaussiano[20] =  1;
+
+	// 	matrizGaussiano[21] =  2;
+	// 	matrizGaussiano[22] = 22;
+	// 	matrizGaussiano[23] = 97;
+	// 	matrizGaussiano[24] = 159;
+	// 	matrizGaussiano[25] = 97;
+	// 	matrizGaussiano[26] = 22;
+	// 	matrizGaussiano[27] =  2;
+
+	// 	matrizGaussiano[28] =  1;
+	// 	matrizGaussiano[29] = 13;
+	// 	matrizGaussiano[30] = 59;
+	// 	matrizGaussiano[31] = 97;
+	// 	matrizGaussiano[32] = 59;
+	// 	matrizGaussiano[33] = 13;
+	// 	matrizGaussiano[34] =  1;
+
+	// 	matrizGaussiano[35] =  0;
+	// 	matrizGaussiano[36] =  3;
+	// 	matrizGaussiano[37] = 13;
+	// 	matrizGaussiano[38] = 22;
+	// 	matrizGaussiano[39] = 13;
+	// 	matrizGaussiano[40] =  3;
+	// 	matrizGaussiano[41] =  0;
+
+	// 	matrizGaussiano[42] = 0;
+	// 	matrizGaussiano[43] = 0;
+	// 	matrizGaussiano[44] = 1;
+	// 	matrizGaussiano[45] = 2;
+	// 	matrizGaussiano[46] = 1;
+	// 	matrizGaussiano[47] = 0;
+	// 	matrizGaussiano[48] = 0;
+	// }
+
 	//Leitura da imagem entrada
 	for(iForImagem=0; iForImagem<cabecalho.altura; iForImagem++){
 		ali = (cabecalho.largura * 3) % 4;
@@ -147,6 +260,29 @@ int main(int argc, char **argv ){
 		}
 	}
 
+	//Aplicar filtro Gaussiano
+	for(iForImagem=1; iForImagem<(cabecalho.altura-1); iForImagem++){
+		for(jForImagem=1; jForImagem<(cabecalho.largura-1); jForImagem++){
+			//Calcular as posicoes
+			iPosLinhaAnt  = (iForImagem-1) * cabecalho.largura;
+			jPosColunaAnt = jForImagem-1;
+
+			iPosLinha  = (iForImagem) * cabecalho.largura;
+			jPosColuna = jForImagem;
+
+			iPosLinhaPrx  = (iForImagem+1) * cabecalho.largura;
+			jPosColunaPrx = jForImagem+1;
+
+	
+			//Imagem de saida		
+			iPosMatriz = iPosLinha + jForImagem;
+
+			imagemGaussiano[iPosMatriz].red    = imagemCinza[iPosMatriz].red;
+			imagemGaussiano[iPosMatriz].green  = imagemCinza[iPosMatriz].red;
+			imagemGaussiano[iPosMatriz].blue   = imagemCinza[iPosMatriz].red;
+		}
+	}
+
 	//Aplicar filtro Sobel
 	for(iForImagem=1; iForImagem<(cabecalho.altura-1); iForImagem++){
 		for(jForImagem=1; jForImagem<(cabecalho.largura-1); jForImagem++){
@@ -161,25 +297,25 @@ int main(int argc, char **argv ){
 			jPosColunaPrx = jForImagem+1;
 
 			//Mascaras
-			valorX   = MascaraX[0] * imagemCinza[(iPosLinhaAnt) + (jPosColunaAnt)].red
-					 + MascaraX[1] * imagemCinza[(iPosLinhaAnt) + (jPosColuna)].red
-					 + MascaraX[2] * imagemCinza[(iPosLinhaAnt) + (jPosColunaPrx)].red
-					 + MascaraX[3] * imagemCinza[(iPosLinha)    + (jPosColunaAnt)].red
-					 + MascaraX[4] * imagemCinza[(iPosLinha)    + (jPosColuna)].red
-					 + MascaraX[5] * imagemCinza[(iPosLinha)    + (jPosColunaPrx)].red
-					 + MascaraX[6] * imagemCinza[(iPosLinhaPrx) + (jPosColunaAnt)].red
-					 + MascaraX[7] * imagemCinza[(iPosLinhaPrx) + (jPosColuna)].red
-					 + MascaraX[8] * imagemCinza[(iPosLinhaPrx) + (jPosColunaPrx)].red; 
+			valorX   = MascaraX[0] * imagemGaussiano[(iPosLinhaAnt) + (jPosColunaAnt)].red
+					 + MascaraX[1] * imagemGaussiano[(iPosLinhaAnt) + (jPosColuna)].red
+					 + MascaraX[2] * imagemGaussiano[(iPosLinhaAnt) + (jPosColunaPrx)].red
+					 + MascaraX[3] * imagemGaussiano[(iPosLinha)    + (jPosColunaAnt)].red
+					 + MascaraX[4] * imagemGaussiano[(iPosLinha)    + (jPosColuna)].red
+					 + MascaraX[5] * imagemGaussiano[(iPosLinha)    + (jPosColunaPrx)].red
+					 + MascaraX[6] * imagemGaussiano[(iPosLinhaPrx) + (jPosColunaAnt)].red
+					 + MascaraX[7] * imagemGaussiano[(iPosLinhaPrx) + (jPosColuna)].red
+					 + MascaraX[8] * imagemGaussiano[(iPosLinhaPrx) + (jPosColunaPrx)].red; 
 
-			valorY   = MascaraY[0] * imagemCinza[(iPosLinhaAnt) + (jPosColunaAnt)].red
-					 + MascaraY[1] * imagemCinza[(iPosLinhaAnt) + (jPosColuna)].red
-					 + MascaraY[2] * imagemCinza[(iPosLinhaAnt) + (jPosColunaPrx)].red
-					 + MascaraY[3] * imagemCinza[(iPosLinha)    + (jPosColunaAnt)].red
-					 + MascaraY[4] * imagemCinza[(iPosLinha)    + (jPosColuna)].red
-					 + MascaraY[5] * imagemCinza[(iPosLinha)    + (jPosColunaPrx)].red
-					 + MascaraY[6] * imagemCinza[(iPosLinhaPrx) + (jPosColunaAnt)].red
-					 + MascaraY[7] * imagemCinza[(iPosLinhaPrx) + (jPosColuna)].red
-					 + MascaraY[8] * imagemCinza[(iPosLinhaPrx) + (jPosColunaPrx)].red;
+			valorY   = MascaraY[0] * imagemGaussiano[(iPosLinhaAnt) + (jPosColunaAnt)].red
+					 + MascaraY[1] * imagemGaussiano[(iPosLinhaAnt) + (jPosColuna)].red
+					 + MascaraY[2] * imagemGaussiano[(iPosLinhaAnt) + (jPosColunaPrx)].red
+					 + MascaraY[3] * imagemGaussiano[(iPosLinha)    + (jPosColunaAnt)].red
+					 + MascaraY[4] * imagemGaussiano[(iPosLinha)    + (jPosColuna)].red
+					 + MascaraY[5] * imagemGaussiano[(iPosLinha)    + (jPosColunaPrx)].red
+					 + MascaraY[6] * imagemGaussiano[(iPosLinhaPrx) + (jPosColunaAnt)].red
+					 + MascaraY[7] * imagemGaussiano[(iPosLinhaPrx) + (jPosColuna)].red
+					 + MascaraY[8] * imagemGaussiano[(iPosLinhaPrx) + (jPosColunaPrx)].red;
 	
 			//Imagem de saida		
 			iPosMatriz = iPosLinha + jForImagem;
