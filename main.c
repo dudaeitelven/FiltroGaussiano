@@ -61,6 +61,11 @@ int main(int argc, char **argv ){
 	int i;
 	int mascara;
 	int nthreads;
+	int matrizGaussiano[mascara][mascara];
+	int iIni, iFim;
+	int jIni, jFim;
+	int iForGaussiano, jForGaussiano;
+	int iTamAux;
 
 	CABECALHO cabecalho;
 	RGB *imagemEntrada, *imagemSaida;
@@ -141,6 +146,108 @@ int main(int argc, char **argv ){
 	MascaraY[7] =  2; //P8
 	MascaraY[8] =  1; //P9
 	
+	if (mascara == 3) {
+		matrizGaussiano[0][0] = 1;
+		matrizGaussiano[0][1] = 2;
+		matrizGaussiano[0][2] = 1;
+
+		matrizGaussiano[1][0] = 2;
+		matrizGaussiano[1][1] = 4;
+		matrizGaussiano[1][2] = 2;
+
+		matrizGaussiano[2][0] = 1;
+		matrizGaussiano[2][1] = 2;
+		matrizGaussiano[2][2] = 1;
+	}
+	else if (mascara == 5) {
+		matrizGaussiano[0][0] = 1;
+		matrizGaussiano[0][1] = 4;
+		matrizGaussiano[0][2] = 7;
+		matrizGaussiano[0][3] = 4;
+		matrizGaussiano[0][4] = 1;
+
+		matrizGaussiano[1][0] = 4;
+		matrizGaussiano[1][1] = 16;
+		matrizGaussiano[1][2] = 26;
+		matrizGaussiano[1][3] = 16;
+		matrizGaussiano[1][4] = 4;
+
+		matrizGaussiano[2][0] = 7;
+		matrizGaussiano[2][1] = 26;
+		matrizGaussiano[2][2] = 41;
+		matrizGaussiano[2][3] = 26;
+		matrizGaussiano[2][4] = 7;
+
+		matrizGaussiano[3][0] = 4;
+		matrizGaussiano[3][1] = 16;
+		matrizGaussiano[3][2] = 26;
+		matrizGaussiano[3][3] = 16;
+		matrizGaussiano[3][4] = 4;
+
+		matrizGaussiano[4][0] = 1;
+		matrizGaussiano[4][1] = 4;
+		matrizGaussiano[4][2] = 7;
+		matrizGaussiano[4][3] = 4;
+		matrizGaussiano[4][4] = 1;
+	}
+	else {
+		matrizGaussiano[0][0] = 0;
+		matrizGaussiano[0][1] = 0;
+		matrizGaussiano[0][2] = 1;
+		matrizGaussiano[0][3] = 2;
+		matrizGaussiano[0][4] = 1;
+		matrizGaussiano[0][5] = 0;
+		matrizGaussiano[0][6] = 0;
+
+		matrizGaussiano[1][0] =  0;
+		matrizGaussiano[1][1] =  3;
+		matrizGaussiano[1][2] = 13;
+		matrizGaussiano[1][3] = 22;
+		matrizGaussiano[1][4] = 13;
+		matrizGaussiano[1][5] =  3;
+		matrizGaussiano[1][6] =  0;
+
+		matrizGaussiano[2][0] =  1;
+		matrizGaussiano[2][1] = 13;
+		matrizGaussiano[2][2] = 59;
+		matrizGaussiano[2][3] = 97;
+		matrizGaussiano[2][4] = 59;
+		matrizGaussiano[2][5] = 13;
+		matrizGaussiano[2][6] =  1;
+
+		matrizGaussiano[3][0] =  2;
+		matrizGaussiano[3][1] = 22;
+		matrizGaussiano[3][2] = 97;
+		matrizGaussiano[3][3] = 159;
+		matrizGaussiano[3][4] = 97;
+		matrizGaussiano[3][5] = 22;
+		matrizGaussiano[3][6] =  2;
+
+		matrizGaussiano[4][0] =  1;
+		matrizGaussiano[4][1] = 13;
+		matrizGaussiano[4][2] = 59;
+		matrizGaussiano[4][3] = 97;
+		matrizGaussiano[4][4] = 59;
+		matrizGaussiano[4][5] = 13;
+		matrizGaussiano[4][6] =  1;
+
+		matrizGaussiano[5][0] =  0;
+		matrizGaussiano[5][1] =  3;
+		matrizGaussiano[5][2] = 13;
+		matrizGaussiano[5][3] = 22;
+		matrizGaussiano[5][4] = 13;
+		matrizGaussiano[5][5] =  3;
+		matrizGaussiano[5][6] =  0;
+
+		matrizGaussiano[6][0] = 0;
+		matrizGaussiano[6][1] = 0;
+		matrizGaussiano[6][2] = 1;
+		matrizGaussiano[6][3] = 2;
+		matrizGaussiano[6][4] = 1;
+		matrizGaussiano[6][5] = 0;
+		matrizGaussiano[6][6] = 0;
+	}
+
 	//Leitura da imagem entrada
 	for(iForImagem=0; iForImagem<cabecalho.altura; iForImagem++){
 		ali = (cabecalho.largura * 3) % 4;
@@ -166,6 +273,34 @@ int main(int argc, char **argv ){
 			imagemCinza[iPosMatriz].red    = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
 			imagemCinza[iPosMatriz].green  = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
 			imagemCinza[iPosMatriz].blue   = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
+		}
+	}
+
+	//Aplicar filtro Gaussiano
+	for(iForImagem=range; iForImagem<(cabecalho.altura-range); iForImagem++){
+		for(jForImagem=range; jForImagem<(cabecalho.largura-range); jForImagem++){
+
+			//Buscar valores da imagem em cinza
+			iIni = (iForImagem - range);
+			iFim = (iForImagem + range);
+			jIni = (jForImagem - range);
+			jFim = (jForImagem + range);;
+
+			iTamAux = 0;
+
+			for (iForGaussiano = iIni; iForGaussiano <= iFim; iForGaussiano++)
+            {
+                for (jForGaussiano = jIni; jForGaussiano <= jFim; jForGaussiano++)
+                {
+					iPosMatriz = iForGaussiano * cabecalho.largura + jForGaussiano;
+
+					imagemAux[iTamAux].red   = imagemCinza[iPosMatriz].red;
+					imagemAux[iTamAux].green = imagemCinza[iPosMatriz].green;
+					imagemAux[iTamAux].blue  = imagemCinza[iPosMatriz].blue;
+
+					iTamAux++;
+                }
+            }
 		}
 	}
 
@@ -212,7 +347,6 @@ int main(int argc, char **argv ){
 		}
 	}
 	
-
 	//Escrever cabecalho saida
 	fwrite(&cabecalho, sizeof(CABECALHO), 1, fout);
 
