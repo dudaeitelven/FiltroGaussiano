@@ -61,18 +61,18 @@ int main(int argc, char **argv ){
 	int i;
 	int mascara;
 	int nthreads;
-	int matrizGaussiano[mascara][mascara];
+	int matrizGaussiano[7][7];
 	int iIni, iFim;
 	int jIni, jFim;
 	int iForGaussiano, jForGaussiano;
 	int iTamAux;
-
+	
 	CABECALHO cabecalho;
 	RGB *imagemEntrada, *imagemSaida;
 	RGB *imagemX, *imagemY;
 	RGB *imagemCinza;
 	RGB *imagemGaussiano;
-	RGB *imagemAux;
+	RGB *imagemAux, *imagemAuxGau;
 	
 	if ( argc != 5){
 		printf("%s <img_entrada> <img_saida> <mascara> <threads>\n", argv[0]);
@@ -119,8 +119,8 @@ int main(int argc, char **argv ){
 	imagemCinza  	= (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
 	imagemGaussiano = (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
 	imagemSaida  	= (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
-	imagemAux		= (RGB *)malloc(mascara*mascara*sizeof(RGB));
-
+	imagemAux		= (RGB *)malloc((mascara*mascara)*sizeof(RGB));
+	imagemAuxGau	= (RGB *)malloc(1*sizeof(RGB));
 	imagemX  		= (RGB *)malloc((3*3)*sizeof(RGB));
 	imagemY  		= (RGB *)malloc((3*3)*sizeof(RGB));
 
@@ -128,9 +128,11 @@ int main(int argc, char **argv ){
 	MascaraX[0] = -1; //P1
 	MascaraX[1] =  0; //P2
 	MascaraX[2] =  1; //P3
+
 	MascaraX[3] = -2; //P4
 	MascaraX[4] =  0; //P5 - Central
 	MascaraX[5] =  2; //P6
+
 	MascaraX[6] = -1; //P7
 	MascaraX[7] =  0; //P8
 	MascaraX[8] =  1; //P9
@@ -139,9 +141,11 @@ int main(int argc, char **argv ){
 	MascaraY[0] = -1; //P1
 	MascaraY[1] = -2; //P2
 	MascaraY[2] = -1; //P3
+
 	MascaraY[3] =  0; //P4
 	MascaraY[4] =  0; //P5 - Central
 	MascaraY[5] =  0; //P6
+
 	MascaraY[6] =  1; //P7
 	MascaraY[7] =  2; //P8
 	MascaraY[8] =  1; //P9
@@ -279,35 +283,53 @@ int main(int argc, char **argv ){
 	//Aplicar filtro Gaussiano
 	for(iForImagem=range; iForImagem<(cabecalho.altura-range); iForImagem++){
 		for(jForImagem=range; jForImagem<(cabecalho.largura-range); jForImagem++){
-
-			//Buscar valores da imagem em cinza
+			//Variaveis auxiliares
+			iTamAux = 0;
 			iIni = (iForImagem - range);
 			iFim = (iForImagem + range);
 			jIni = (jForImagem - range);
-			jFim = (jForImagem + range);;
+			jFim = (jForImagem + range);
 
-			iTamAux = 0;
-
+			//Buscar valores da imagem em cinza para o calculo Gaussiano
 			for (iForGaussiano = iIni; iForGaussiano <= iFim; iForGaussiano++)
             {
                 for (jForGaussiano = jIni; jForGaussiano <= jFim; jForGaussiano++)
                 {
 					iPosMatriz = iForGaussiano * cabecalho.largura + jForGaussiano;
 
-					imagemAux[iTamAux].red   = imagemAux[iTamAux].red   + (matrizGaussiano[iForGaussiano][jForGaussiano] * imagemCinza[iPosMatriz].red);
-					imagemAux[iTamAux].green = imagemAux[iTamAux].green + (matrizGaussiano[iForGaussiano][jForGaussiano] * imagemCinza[iPosMatriz].green);
-					imagemAux[iTamAux].blue  = imagemAux[iTamAux].blue  + (matrizGaussiano[iForGaussiano][jForGaussiano] * imagemCinza[iPosMatriz].blue);
+					imagemAux[iTamAux].red   = imagemCinza[iPosMatriz].red;
+					imagemAux[iTamAux].green = imagemCinza[iPosMatriz].green;
+					imagemAux[iTamAux].blue  = imagemCinza[iPosMatriz].blue;
+
+					iTamAux++;
                 }
             }
 
-			iPosLinha  = iForImagem * cabecalho.largura;
-			jPosColuna = jForImagem;
+			//Variaveis auxiliares
+			iTamAux = 0;
+			imagemAuxGau[0].red   = 0;
+			imagemAuxGau[0].green = 0;
+			imagemAuxGau[0].blue  = 0;
 
-			iPosMatriz = iPosLinha + jPosColuna;
+			//Calcula o gaussiano
+			for (iForGaussiano = 0; iForGaussiano < mascara; iForGaussiano++)
+            {
+                for (jForGaussiano = 0; jForGaussiano < mascara; jForGaussiano++)
+                {
+					imagemAuxGau[0].red   = imagemAuxGau[0].red   + (matrizGaussiano[iForGaussiano][jForGaussiano] * imagemAux[iTamAux].red);
+					imagemAuxGau[0].green = imagemAuxGau[0].green + (matrizGaussiano[iForGaussiano][jForGaussiano] * imagemAux[iTamAux].green);
+					imagemAuxGau[0].blue  = imagemAuxGau[0].blue  + (matrizGaussiano[iForGaussiano][jForGaussiano] * imagemAux[iTamAux].blue);
 
-			imagemGaussiano[iPosMatriz].red   = imagemAux[iTamAux].red   / (mascara*mascara);
-			imagemGaussiano[iPosMatriz].green = imagemAux[iTamAux].green / (mascara*mascara);
-			imagemGaussiano[iPosMatriz].blue  = imagemAux[iTamAux].blue  / (mascara*mascara);
+					iTamAux++;
+                }
+            }
+
+			//Atualiza a imagem nova
+			iPosMatriz = iForImagem * cabecalho.largura + jForImagem;
+			
+			imagemGaussiano[iPosMatriz].red   = imagemAux[0].red   / (mascara*mascara);
+			imagemGaussiano[iPosMatriz].green = imagemAux[0].green / (mascara*mascara);
+			imagemGaussiano[iPosMatriz].blue  = imagemAux[0].blue  / (mascara*mascara);
 		}
 	}
 
@@ -324,7 +346,7 @@ int main(int argc, char **argv ){
 			iPosLinhaPrx  = (iForImagem+1) * cabecalho.largura;
 			jPosColunaPrx = jForImagem+1;
 
-			//Mascaras
+			//Mascaras de sobel
 			valorX   = MascaraX[0] * imagemGaussiano[(iPosLinhaAnt) + (jPosColunaAnt)].red
 					 + MascaraX[1] * imagemGaussiano[(iPosLinhaAnt) + (jPosColuna)].red
 					 + MascaraX[2] * imagemGaussiano[(iPosLinhaAnt) + (jPosColunaPrx)].red
