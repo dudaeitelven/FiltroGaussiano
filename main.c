@@ -1,16 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/sem.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/time.h>
-
-
 #pragma pack(1)
 
 /*
@@ -244,7 +237,15 @@ void *filtroGaussiano(void *args) {
 	}
 }
 
-void filtroSobel(RGB *imagemGaussiano, RGB *imagemSaida, CABECALHO cabecalho, int range){
+void *filtroSobel(void *args) {
+ 	PARAMETROS *par = (PARAMETROS *)args;
+ 	int id = par->id;
+ 	int nthr = par->nthr;
+ 	int range = par->range;
+ 	CABECALHO cabecalho = par->cabecalho;
+ 	RGB *imagemSaida = par->imagemSaida;
+ 	RGB *imagemGaussiano = par->imagemGaussiano;
+	//-----------------------------------------
 	int iForImagem, jForImagem;
 	int iPosLinhaAnt, jPosColunaAnt;
 	int iPosLinha, jPosColuna;
@@ -279,7 +280,7 @@ void filtroSobel(RGB *imagemGaussiano, RGB *imagemSaida, CABECALHO cabecalho, in
 	MascaraY[7] =  2; //P8
 	MascaraY[8] =  1; //P9
 
-	for(iForImagem=range; iForImagem<(cabecalho.altura-range); iForImagem++){
+	for(iForImagem=range+id; iForImagem<(cabecalho.altura-range); iForImagem+=nthr){
 		for(jForImagem=range; jForImagem<(cabecalho.largura-range); jForImagem++){
 			//Calcular as posicoes
 			iPosLinhaAnt  = (iForImagem-1) * cabecalho.largura;
@@ -362,31 +363,6 @@ void escreverImagem(RGB *imagemSaida, CABECALHO cabecalho, FILE *fout) {
 	}
 }
 
-// void * filtroCinza(void *args){
-// 	PARAMETROS *par = (PARAMETROS *)args;
-// 	int id = par->id;
-// 	int nthr = par->nthr ;
-// 	int mascara = par->mascara;
-// 	int range = par->range;
-// 	CABECALHO cabecalho = par->cabecalho;
-// 	RGB *imagemEntrada = par->imagemEntrada;
-// 	RGB *imagemSaida = par->imagemSaida;
-// 	RGB *imagemCinza = par->imagemCinza;
-// 	RGB *imagemGaussiano = par->imagemGaussiano;
-// 	int iForImagem, jForImagem;
-// 	int iPosMatriz;
-	
-// 	for(iForImagem=id; iForImagem<cabecalho.altura; iForImagem+=nthr){
-// 		for(jForImagem=0; jForImagem<cabecalho.largura; jForImagem++){
-// 			iPosMatriz = iForImagem * cabecalho.largura + jForImagem;
-
-// 			imagemCinza[iPosMatriz].red    = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
-// 			imagemCinza[iPosMatriz].green  = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
-// 			imagemCinza[iPosMatriz].blue   = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
-// 		}
-// 	}
-// }
-
 int main(int argc, char **argv ){
 	char *entrada;
 	char *saida;
@@ -407,7 +383,7 @@ int main(int argc, char **argv ){
 	PARAMETROS *par = NULL;
 	
 	if ( argc != 5){
-		printf("%s <img_entrada> <img_saida> <mascara> <threads>\n", argv[0]);
+		printf("%s <img_entrada> <img_saida> <mascara> <num_threads>\n", argv[0]);
 		exit(0);
 	}
 
@@ -452,6 +428,9 @@ int main(int argc, char **argv ){
 	imagemGaussiano = (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
 	imagemSaida  	= (RGB *)malloc(cabecalho.altura*cabecalho.largura*sizeof(RGB));
 
+	tid = (pthread_t *)malloc(nthreads * sizeof(pthread_t));
+	par = (PARAMETROS *)malloc(nthreads * sizeof(PARAMETROS));
+
 	//Leitura da imagem entrada
 	for(iForImagem=0; iForImagem<cabecalho.altura; iForImagem++){
 		ali = (cabecalho.largura * 3) % 4;
@@ -474,21 +453,16 @@ int main(int argc, char **argv ){
 	//Filtro em escala de cinza
 	filtroCinza(imagemEntrada,imagemCinza,cabecalho);
 
-	tid = (pthread_t *)malloc(nthreads * sizeof(pthread_t));
-	par = (PARAMETROS *)malloc(nthreads * sizeof(PARAMETROS));
-
+	//Filtro Gaussiano
 	for( i=0; i<nthreads; i++ ){
 		par[i].id = i;
 		par[i].nthr = nthreads;
 		par[i].mascara = mascara;
 		par[i].range = range;
 		par[i].cabecalho = cabecalho;
-		par[i].imagemEntrada = imagemEntrada;
-		par[i].imagemSaida = imagemSaida;
 		par[i].imagemCinza = imagemCinza;
 		par[i].imagemGaussiano = imagemGaussiano;
-
-		//Filtro Gaussiano
+		
 		pthread_create(&tid[i], NULL, filtroGaussiano, (void *) &par[i]); 
 	} 
 	
@@ -496,8 +470,21 @@ int main(int argc, char **argv ){
 		pthread_join(tid[i], NULL);
 	}
 
-	//Aplicar filtro Sobel
-	filtroSobel(imagemGaussiano, imagemSaida, cabecalho, range);
+	//Filtro Sobel
+	for( i=0; i<nthreads; i++ ){
+		par[i].id = i;
+		par[i].nthr = nthreads;
+		par[i].range = range;
+		par[i].cabecalho = cabecalho;
+		par[i].imagemSaida = imagemSaida;
+		par[i].imagemGaussiano = imagemGaussiano;
+
+		pthread_create(&tid[i], NULL, filtroSobel, (void *) &par[i]); 
+	} 
+	
+	for (i=0; i<nthreads; i++ ){
+		pthread_join(tid[i], NULL);
+	}
 	
 	//Escrever a imagem saida
 	escreverImagem(imagemSaida,cabecalho,fout);

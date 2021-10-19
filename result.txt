@@ -1,0 +1,17 @@
+Arquivo saida.bmp gerado com mascara de 3.
+    Tempo: 0.107824
+    Tempo: 0.065931
+    Tempo: 0.049090
+    Tempo: 0.046846
+
+Arquivo saida.bmp gerado com mascara de 5.
+    Tempo: 0.139555
+    Tempo: 0.081923
+    Tempo: 0.067544
+    Tempo: 0.071264
+
+Arquivo saida.bmp gerado com mascara de 7.
+    Tempo: 0.197422
+    Tempo: 0.111727
+    Tempo: 0.079337
+    Tempo: 0.067876
