@@ -7,14 +7,17 @@
 #include <sys/sem.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sys/time.h>
+
 
 #pragma pack(1)
 
 /*
 Para compilar:
 1 - Abrir o local do fonte
-2 - Digitar para compilar: gcc main.c -o main -lm
-3 - Digitar para rodar: ./main borboleta.bmp saida.bmp 4
+2 - Digitar para compilar: gcc main.c -o main -lm -pthread
+3 - Digitar para rodar: ./main borboleta.bmp saida.bmp 3 1
 */
 
 struct cabecalho {
@@ -44,7 +47,35 @@ struct rgb{
 };
 typedef struct rgb RGB;
 
-void filtroGaussiano(RGB *imagemGaussiano, RGB *imagemCinza, CABECALHO cabecalho, int mascara,int range) {
+struct parametros{
+	int id;
+	int nthr;
+	int mascara;
+	int range;
+	CABECALHO cabecalho;
+	RGB *imagemEntrada;
+	RGB *imagemSaida;
+	RGB *imagemCinza;
+	RGB *imagemGaussiano;
+};
+typedef struct parametros PARAMETROS;
+
+double tempoCorrente(void){
+     struct timeval tval;
+     gettimeofday(&tval, NULL);
+     return (tval.tv_sec + tval.tv_usec/1000000.0);
+}
+
+void *filtroGaussiano(void *args) {
+	PARAMETROS *par = (PARAMETROS *)args;
+	int id = par->id;
+	int nthr = par->nthr ;
+	int mascara = par->mascara;
+	int range = par->range;
+	CABECALHO cabecalho = par->cabecalho;
+	RGB *imagemCinza = par->imagemCinza;
+	RGB *imagemGaussiano = par->imagemGaussiano;
+	//------------------------------------------
 	int iForGaussiano, jForGaussiano;
 	int iForImagem, jForImagem;
 	int iIni, iFim;
@@ -57,7 +88,7 @@ void filtroGaussiano(RGB *imagemGaussiano, RGB *imagemCinza, CABECALHO cabecalho
 	imagemAux 		= (RGB *)malloc((mascara*mascara)*sizeof(RGB));
 	imagemAuxGau 	= (RGB *)malloc(1*sizeof(RGB));
 
-		if (mascara == 3) {
+	if (mascara == 3) {
 		matrizGaussiano[0][0] = 1;
 		matrizGaussiano[0][1] = 2;
 		matrizGaussiano[0][2] = 1;
@@ -160,7 +191,7 @@ void filtroGaussiano(RGB *imagemGaussiano, RGB *imagemCinza, CABECALHO cabecalho
 	}
 
 	//Aplicar filtro Gaussiano
-	for(iForImagem=range; iForImagem<(cabecalho.altura-range); iForImagem++){
+	for(iForImagem=range+id; iForImagem<(cabecalho.altura-range); iForImagem+=nthr){
 		for(jForImagem=range; jForImagem<(cabecalho.largura-range); jForImagem++){
 			//Variaveis auxiliares
 			iTamAux = 0;
@@ -331,6 +362,31 @@ void escreverImagem(RGB *imagemSaida, CABECALHO cabecalho, FILE *fout) {
 	}
 }
 
+// void * filtroCinza(void *args){
+// 	PARAMETROS *par = (PARAMETROS *)args;
+// 	int id = par->id;
+// 	int nthr = par->nthr ;
+// 	int mascara = par->mascara;
+// 	int range = par->range;
+// 	CABECALHO cabecalho = par->cabecalho;
+// 	RGB *imagemEntrada = par->imagemEntrada;
+// 	RGB *imagemSaida = par->imagemSaida;
+// 	RGB *imagemCinza = par->imagemCinza;
+// 	RGB *imagemGaussiano = par->imagemGaussiano;
+// 	int iForImagem, jForImagem;
+// 	int iPosMatriz;
+	
+// 	for(iForImagem=id; iForImagem<cabecalho.altura; iForImagem+=nthr){
+// 		for(jForImagem=0; jForImagem<cabecalho.largura; jForImagem++){
+// 			iPosMatriz = iForImagem * cabecalho.largura + jForImagem;
+
+// 			imagemCinza[iPosMatriz].red    = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
+// 			imagemCinza[iPosMatriz].green  = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
+// 			imagemCinza[iPosMatriz].blue   = (0.2126 * imagemEntrada[iPosMatriz].red) + (0.7152 * imagemEntrada[iPosMatriz].green) + (0.0722 * imagemEntrada[iPosMatriz].blue);
+// 		}
+// 	}
+// }
+
 int main(int argc, char **argv ){
 	char *entrada;
 	char *saida;
@@ -339,12 +395,16 @@ int main(int argc, char **argv ){
 	int  range;
 	int  mascara;
 	int  nthreads;
+	int  i;
+	double ti, tf;
 
 	CABECALHO cabecalho;
 	RGB *imagemEntrada;
 	RGB *imagemSaida;
 	RGB *imagemCinza;
 	RGB *imagemGaussiano;
+	pthread_t *tid = NULL;
+	PARAMETROS *par = NULL;
 	
 	if ( argc != 5){
 		printf("%s <img_entrada> <img_saida> <mascara> <threads>\n", argv[0]);
@@ -409,17 +469,40 @@ int main(int argc, char **argv ){
 		}
 	}
 
+	ti = tempoCorrente();
+
 	//Filtro em escala de cinza
 	filtroCinza(imagemEntrada,imagemCinza,cabecalho);
 
-	//Filtro Gaussiano
-	filtroGaussiano(imagemGaussiano,imagemCinza,cabecalho,mascara,range);
+	tid = (pthread_t *)malloc(nthreads * sizeof(pthread_t));
+	par = (PARAMETROS *)malloc(nthreads * sizeof(PARAMETROS));
+
+	for( i=0; i<nthreads; i++ ){
+		par[i].id = i;
+		par[i].nthr = nthreads;
+		par[i].mascara = mascara;
+		par[i].range = range;
+		par[i].cabecalho = cabecalho;
+		par[i].imagemEntrada = imagemEntrada;
+		par[i].imagemSaida = imagemSaida;
+		par[i].imagemCinza = imagemCinza;
+		par[i].imagemGaussiano = imagemGaussiano;
+
+		//Filtro Gaussiano
+		pthread_create(&tid[i], NULL, filtroGaussiano, (void *) &par[i]); 
+	} 
+	
+	for (i=0; i<nthreads; i++ ){
+		pthread_join(tid[i], NULL);
+	}
 
 	//Aplicar filtro Sobel
 	filtroSobel(imagemGaussiano, imagemSaida, cabecalho, range);
 	
 	//Escrever a imagem saida
 	escreverImagem(imagemSaida,cabecalho,fout);
+
+	tf = tempoCorrente();
 
 	//Fecha os arquivos
 	fclose(fin);
@@ -430,6 +513,9 @@ int main(int argc, char **argv ){
 	free(imagemCinza);
 	free(imagemGaussiano);
 	free(imagemSaida);
-
-	printf("Arquivo %s gerado.\n", saida);
+	free(tid);
+	free(par);
+	
+	printf("Arquivo %s gerado com mascara de %d.\n", saida, mascara);
+	printf("Tempo: %f\n", tf - ti );
 }
